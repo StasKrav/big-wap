@@ -564,41 +564,75 @@ body {
 
 /* Стили для drag handle */
 .drag-handle {
-  cursor: grab;
-  color: var(--text-secondary);
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-  opacity: 0.3;
-  transition: all 0.2s ease;
-  padding: 4px;
-  border-radius: 4px;
-  flex-shrink: 0;
+    cursor: grab;
+    color: var(--text-secondary);
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    opacity: 0.2; /* Почти невидим */
+    transition: all 0.2s ease;
+    padding: 4px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* Показываем ручку при наведении на трек */
+.playlist-item:hover .drag-handle {
+    opacity: 0.6;
 }
 
 .drag-handle:hover {
-  opacity: 1;
-  color: var(--accent-solid);
-  background: rgba(170, 100, 140, 0.1);
+    opacity: 1 !important;
+    color: var(--accent-solid);
+    background: rgba(170, 100, 140, 0.1);
 }
 
 .drag-handle:active {
-  cursor: grabbing;
-  opacity: 1;
-  color: var(--accent-solid);
+    cursor: grabbing;
+    opacity: 1;
+    color: var(--accent-solid);
+}
+
+/* Только для десктопа */
+@media (hover: hover) {
+    .drag-handle {
+        opacity: 0.15;
+    }
+    
+    .playlist-item:hover .drag-handle {
+        opacity: 0.5;
+    }
+    
+    .drag-handle:hover {
+        opacity: 1 !important;
+    }
 }
 
 /* Стили для перетаскивания */
 .playlist-item.dragging {
-  opacity: 0.4;
-  background: rgba(170, 100, 140, 0.1);
+    opacity: 0.5;
+    background: rgba(170, 100, 140, 0.05);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    transform: scale(0.98);
+    z-index: 1000;
+    border-color: var(--accent-solid);
 }
 
 .playlist-item.drag-over {
-  border-top: 2px solid var(--accent-solid);
-  margin-top: 6px;
-  padding-top: 14px;
-  background: rgba(170, 100, 140, 0.05);
+    border-top: 2px solid var(--accent-solid);
+    background: rgba(170, 100, 140, 0.03);
+}
+
+.playlist-item {
+    cursor: default;
+}
+
+.playlist-item .drag-handle {
+    cursor: grab;
+}
+
+.playlist-item .drag-handle:active {
+    cursor: grabbing;
 }
 
 /* Основная область клика (вся строка кроме кнопок) */

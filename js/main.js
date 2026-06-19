@@ -8,9 +8,6 @@ class MediaPlayer {
     // Состояния для drag & drop
     this.dragSourceIndex = null;
     this.dragOverIndex = null;
-    this.touchDragActive = false;
-    this.touchStartY = 0;
-    this.touchStartItem = null;
     this.longPressTimer = null;
     this.longPressTriggered = false;
 
@@ -233,34 +230,20 @@ class MediaPlayer {
   // ========== Drag & Drop методы ==========
 
   handleDragStart(e) {
-    // Проверяем, что перетаскивание началось с drag-handle
-    const handle = e.target.closest(".drag-handle");
-    if (!handle) {
-      e.preventDefault();
-      return false;
-    }
-
-    const item = handle.closest(".playlist-item");
-    if (!item) {
-      e.preventDefault();
-      return false;
-    }
-
-    this.dragSourceIndex = parseInt(item.dataset.index);
-    item.classList.add("dragging");
-
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", this.dragSourceIndex);
-
-    // Создаем кастомное изображение перетаскивания
-    const ghost = item.cloneNode(true);
-    ghost.style.position = "absolute";
-    ghost.style.top = "-1000px";
-    ghost.style.opacity = "0.8";
-    ghost.style.width = item.offsetWidth + "px";
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => ghost.remove(), 0);
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) {
+          e.preventDefault();
+          return false;
+      }
+  
+      const item = handle.closest('.playlist-item');
+      if (!item) return false;
+  
+      this.dragSourceIndex = parseInt(item.dataset.index);
+      item.classList.add('dragging');
+      
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', this.dragSourceIndex);
   }
 
   handleDragEnd(e) {
@@ -275,91 +258,62 @@ class MediaPlayer {
   }
 
   handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-
-    if (this.dragSourceIndex === null) return;
-
-    const item = e.target.closest(".playlist-item");
-    if (!item) return;
-
-    const index = parseInt(item.dataset.index);
-    if (index === this.dragSourceIndex) {
-      this.clearAllDragIndicators();
-      return;
-    }
-
-    this.clearAllDragIndicators();
-
-    const rect = item.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-
-    if (e.clientY < midY) {
-      // Вставка перед элементом
-      item.classList.add("drag-over");
-      this.dragOverIndex = index;
-    } else {
-      // Вставка после элемента
-      const nextItem = item.nextElementSibling;
-      if (nextItem && nextItem.classList.contains("playlist-item")) {
-        nextItem.classList.add("drag-over");
-        this.dragOverIndex = index + 1;
-      } else {
-        // Последний элемент
-        item.style.borderBottom = "2px solid var(--accent-solid)";
-        item.style.marginBottom = "6px";
-        item.style.paddingBottom = "14px";
-        this.dragOverIndex = index + 1;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      if (this.dragSourceIndex === null) return;
+      
+      const item = e.target.closest('.playlist-item');
+      if (!item) return;
+      
+      const index = parseInt(item.dataset.index);
+      if (index === this.dragSourceIndex) {
+          this.clearAllDragIndicators();
+          return;
       }
-    }
+      
+      this.clearAllDragIndicators();
+      item.classList.add('drag-over');
+      this.dragOverIndex = index;
   }
-
+  
   handleDrop(e) {
-    e.preventDefault();
-
-    if (this.dragSourceIndex === null || this.dragOverIndex === null) {
+      e.preventDefault();
+      
+      if (this.dragSourceIndex === null || this.dragOverIndex === null) {
+          this.clearAllDragIndicators();
+          return;
+      }
+      
+      const sourceIndex = this.dragSourceIndex;
+      let targetIndex = this.dragOverIndex;
+      
+      if (sourceIndex < targetIndex) {
+          targetIndex--;
+      }
+      
+      if (sourceIndex === targetIndex) {
+          this.clearAllDragIndicators();
+          return;
+      }
+      
+      const [movedTrack] = this.playlist.splice(sourceIndex, 1);
+      this.playlist.splice(targetIndex, 0, movedTrack);
+      
+      if (this.currentTrackIndex === sourceIndex) {
+          this.currentTrackIndex = targetIndex;
+      } else if (sourceIndex < this.currentTrackIndex && targetIndex >= this.currentTrackIndex) {
+          this.currentTrackIndex--;
+      } else if (sourceIndex > this.currentTrackIndex && targetIndex <= this.currentTrackIndex) {
+          this.currentTrackIndex++;
+      }
+      
       this.clearAllDragIndicators();
-      return;
-    }
-
-    const sourceIndex = this.dragSourceIndex;
-    let targetIndex = this.dragOverIndex;
-
-    // Корректировка индекса
-    if (sourceIndex < targetIndex) {
-      targetIndex--;
-    }
-
-    if (sourceIndex === targetIndex) {
-      this.clearAllDragIndicators();
-      return;
-    }
-
-    // Перемещаем трек
-    const [movedTrack] = this.playlist.splice(sourceIndex, 1);
-    this.playlist.splice(targetIndex, 0, movedTrack);
-
-    // Обновляем индекс текущего трека
-    if (this.currentTrackIndex === sourceIndex) {
-      this.currentTrackIndex = targetIndex;
-    } else if (
-      sourceIndex < this.currentTrackIndex &&
-      targetIndex >= this.currentTrackIndex
-    ) {
-      this.currentTrackIndex--;
-    } else if (
-      sourceIndex > this.currentTrackIndex &&
-      targetIndex <= this.currentTrackIndex
-    ) {
-      this.currentTrackIndex++;
-    }
-
-    this.clearAllDragIndicators();
-    this.renderPlaylist();
-    this.savePlaylistToStorage();
-
-    this.dragSourceIndex = null;
-    this.dragOverIndex = null;
+      this.renderPlaylist();
+      this.savePlaylistToStorage();
+      
+      this.dragSourceIndex = null;
+      this.dragOverIndex = null;
   }
 
   clearAllDragIndicators() {
@@ -372,153 +326,6 @@ class MediaPlayer {
     });
   }
 
-  // ========== Touch поддержка ==========
-
-  handleTouchStart(e) {
-    // Проверяем, что тач начался на drag-handle
-    const handle = e.target.closest(".drag-handle");
-    if (!handle) return;
-
-    const item = handle.closest(".playlist-item");
-    if (!item) return;
-
-    this.touchStartY = e.touches[0].clientY;
-    this.touchStartItem = item;
-    this.longPressTriggered = false;
-
-    // Запускаем таймер длинного нажатия
-    clearTimeout(this.longPressTimer);
-    this.longPressTimer = setTimeout(() => {
-      this.longPressTriggered = true;
-      this.touchDragActive = true;
-      item.classList.add("dragging");
-
-      // Виброотклик
-      if (navigator.vibrate) {
-        navigator.vibrate(15);
-      }
-    }, 400); // Уменьшил время для более быстрого отклика
-  }
-
-  handleTouchMove(e) {
-    if (!this.touchDragActive || !this.touchStartItem) {
-      // Если двигаемся до активации long press, отменяем
-      if (
-        this.touchStartItem &&
-        Math.abs(e.touches[0].clientY - this.touchStartY) > 10
-      ) {
-        clearTimeout(this.longPressTimer);
-        this.touchStartItem = null;
-      }
-      return;
-    }
-
-    e.preventDefault();
-
-    const touchY = e.touches[0].clientY;
-    const touchX = e.touches[0].clientX;
-
-    // Находим элемент под пальцем
-    const elementUnderTouch = document.elementFromPoint(touchX, touchY);
-    const item = elementUnderTouch?.closest(".playlist-item");
-
-    this.clearAllDragIndicators();
-
-    if (item && item !== this.touchStartItem) {
-      const rect = item.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-
-      if (touchY < midY) {
-        item.classList.add("drag-over");
-      } else {
-        const nextItem = item.nextElementSibling;
-        if (nextItem && nextItem.classList.contains("playlist-item")) {
-          nextItem.classList.add("drag-over");
-        } else {
-          item.style.borderBottom = "2px solid var(--accent-solid)";
-          item.style.marginBottom = "6px";
-          item.style.paddingBottom = "14px";
-        }
-      }
-    }
-  }
-
-  handleTouchEnd(e) {
-    clearTimeout(this.longPressTimer);
-
-    if (!this.touchDragActive) {
-      this.touchStartItem = null;
-      return;
-    }
-
-    if (this.touchStartItem) {
-      this.touchStartItem.classList.remove("dragging");
-
-      const dragOverItem = this.playlistContainer.querySelector(
-        ".playlist-item.drag-over",
-      );
-      const itemWithBorder = this.playlistContainer.querySelector(
-        '.playlist-item[style*="border-bottom"]',
-      );
-
-      if (dragOverItem || itemWithBorder) {
-        const sourceIndex = parseInt(this.touchStartItem.dataset.index);
-        let targetIndex;
-
-        if (dragOverItem) {
-          targetIndex = parseInt(dragOverItem.dataset.index);
-        } else if (itemWithBorder) {
-          targetIndex = parseInt(itemWithBorder.dataset.index) + 1;
-        }
-
-        if (sourceIndex !== targetIndex) {
-          const [movedTrack] = this.playlist.splice(sourceIndex, 1);
-
-          if (sourceIndex < targetIndex) {
-            targetIndex--;
-          }
-
-          this.playlist.splice(targetIndex, 0, movedTrack);
-
-          if (this.currentTrackIndex === sourceIndex) {
-            this.currentTrackIndex = targetIndex;
-          } else if (
-            sourceIndex < this.currentTrackIndex &&
-            targetIndex >= this.currentTrackIndex
-          ) {
-            this.currentTrackIndex--;
-          } else if (
-            sourceIndex > this.currentTrackIndex &&
-            targetIndex <= this.currentTrackIndex
-          ) {
-            this.currentTrackIndex++;
-          }
-
-          this.renderPlaylist();
-          this.savePlaylistToStorage();
-        }
-      }
-
-      this.clearAllDragIndicators();
-    }
-
-    this.touchDragActive = false;
-    this.touchStartItem = null;
-    this.longPressTriggered = false;
-  }
-
-  handleTouchCancel(e) {
-    clearTimeout(this.longPressTimer);
-
-    if (this.touchStartItem) {
-      this.touchStartItem.classList.remove("dragging");
-    }
-
-    this.clearAllDragIndicators();
-    this.touchDragActive = false;
-    this.touchStartItem = null;
-    this.longPressTriggered = false;
-  }
 
   // ========== Основные методы плеера ==========
 
@@ -875,16 +682,18 @@ class MediaPlayer {
   }
 
   updatePlayButton() {
-    if (this.isPlaying) {
-      this.playIcon.innerHTML = `
-                        <rect x="4" y="3" width="3" height="10" rx="0.5"/>
-                        <rect x="9" y="3" width="3" height="10" rx="0.5"/>
-                    `;
-    } else {
-      this.playIcon.innerHTML = `
-                        <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
-                    `;
-    }
+      if (this.isPlaying) {
+          this.playIcon.innerHTML = `
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="4" width="4" height="16" rx="1"/>
+                  <rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
+          `;
+      } else {
+          this.playIcon.innerHTML = `
+              <path d="M8 5v14l11-7z"/>
+          `;
+      }
   }
 
   handleError(e) {
