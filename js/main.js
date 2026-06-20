@@ -84,6 +84,14 @@ class MediaPlayer {
     this.forward1Btn.addEventListener("click", () => this.rewind(1));
     this.forward10Btn.addEventListener("click", () => this.rewind(10));
 
+    this.playlistContainer.addEventListener('click', (e) => {
+            // Проверяем, что клик был по пустому состоянию или его элементам
+            const emptyState = e.target.closest('.empty-state');
+            if (emptyState) {
+                this.fileInput.click(); // Открываем выбор файлов
+            }
+        });
+
     // Делегирование кликов для плейлиста
     this.playlistContainer.addEventListener("click", (e) => {
       // Находим элемент плейлиста
@@ -137,61 +145,61 @@ class MediaPlayer {
         // Загрузка сохраненной громкости
         this.loadVolumeFromStorage();
 
-    document.addEventListener("keydown", (e) => {
-      if (e.code === "Space" && e.target === document.body) {
-        e.preventDefault();
-        this.togglePlay();
-      } else if (e.code === "ArrowLeft" && e.ctrlKey) {
-        e.preventDefault();
-        this.playPrevious();
-      } else if (e.code === "ArrowRight" && e.ctrlKey) {
-        e.preventDefault();
-        this.playNext();
-      }
-    });
-
-    document.addEventListener("keydown", (e) => {
-      // Space - Play/Pause
-      if (e.code === "Space" && e.target === document.body) {
-        e.preventDefault();
-        this.togglePlay();
-      }
-      // S - Stop
-      else if (
-        e.code === "KeyS" &&
-        e.target === document.body &&
-        !e.ctrlKey &&
-        !e.metaKey
-      ) {
-        e.preventDefault();
-        this.stop();
-      }
-      // Стрелки с Shift - 10 секунд
-      else if (e.code === "ArrowLeft" && e.target === document.body) {
-        if (e.shiftKey) {
-          e.preventDefault();
-          this.rewind(-10);
-        } else if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          this.rewind(-1);
+    document.addEventListener('keydown', (e) => {
+        // Игнорируем если в поле ввода
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
         }
-      } else if (e.code === "ArrowRight" && e.target === document.body) {
-        if (e.shiftKey) {
-          e.preventDefault();
-          this.rewind(10);
-        } else if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          this.rewind(1);
+    
+        // Play/Pause - пробел
+        if (e.code === 'Space') {
+            e.preventDefault();
+            this.togglePlay();
         }
-      }
-      // Ctrl+стрелки - навигация по трекам
-      else if (e.code === "ArrowLeft" && e.ctrlKey) {
-        e.preventDefault();
-        this.playPrevious();
-      } else if (e.code === "ArrowRight" && e.ctrlKey) {
-        e.preventDefault();
-        this.playNext();
-      }
+        // Стоп - S
+        else if (e.code === 'KeyS' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.stop();
+        }
+        // Перемотка
+        else if (e.code === 'ArrowLeft') {
+            if (e.shiftKey) {
+                e.preventDefault();
+                this.rewind(-10);
+            } else if (!e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this.rewind(-1);
+            }
+        }
+        else if (e.code === 'ArrowRight') {
+            if (e.shiftKey) {
+                e.preventDefault();
+                this.rewind(10);
+            } else if (!e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this.rewind(1);
+            }
+        }
+        // Громкость
+        else if (e.code === 'ArrowUp' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            const newVolume = Math.min(1, this.audio.volume + 0.05);
+            this.setVolume(newVolume);
+        }
+        else if (e.code === 'ArrowDown' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            const newVolume = Math.max(0, this.audio.volume - 0.05);
+            this.setVolume(newVolume);
+        }
+        // Навигация по трекам
+        else if (e.code === 'ArrowLeft' && e.ctrlKey) {
+            e.preventDefault();
+            this.playPrevious();
+        }
+        else if (e.code === 'ArrowRight' && e.ctrlKey) {
+            e.preventDefault();
+            this.playNext();
+        }
     });
   }
 
@@ -337,7 +345,7 @@ class MediaPlayer {
     );
 
     if (audioFiles.length === 0) {
-      alert("Выбранные файлы не являются аудиофайлами");
+      Toast.show("Выбранные файлы не являются аудиофайлами", "warning");
       return;
     }
 
@@ -580,6 +588,7 @@ class MediaPlayer {
       .catch((error) => {
         console.error("Ошибка воспроизведения:", error);
       });
+      this.scrollToActiveTrack(); 
   }
 
   togglePlay() {
@@ -619,6 +628,7 @@ class MediaPlayer {
     }
 
     this.playTrack(nextIndex);
+    this.scrollToActiveTrack(); 
   }
 
   playPrevious() {
@@ -630,6 +640,7 @@ class MediaPlayer {
     }
 
     this.playTrack(prevIndex);
+    this.scrollToActiveTrack(); 
   }
 
   rewind(seconds) {
@@ -698,7 +709,7 @@ class MediaPlayer {
 
   handleError(e) {
     console.error("Ошибка аудио:", e);
-    alert("Ошибка воспроизведения файла");
+    Toast.show("Ошибка воспроизведения файла", "error", 5000);
     this.playNext();
   }
 
@@ -762,6 +773,11 @@ class MediaPlayer {
                 `,
       )
       .join("");
+
+      // Скроллим к активному треку
+          setTimeout(() => {
+              this.scrollToActiveTrack();
+          }, 50);
   }
 
   savePlaylistToStorage() {
@@ -787,6 +803,18 @@ class MediaPlayer {
     } catch (e) {
       console.warn("Не удалось загрузить плейлист:", e);
     }
+  }
+
+  scrollToActiveTrack() {
+      const activeItem = this.playlistContainer.querySelector('.playlist-item.active');
+      if (activeItem) {
+          // Плавно скроллим к активному треку
+          activeItem.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center', // Центрируем по вертикали
+              inline: 'nearest'
+          });
+      }
   }
 }
 
