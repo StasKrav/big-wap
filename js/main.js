@@ -4,6 +4,7 @@ class MediaPlayer {
     this.playlist = [];
     this.currentTrackIndex = -1;
     this.isPlaying = false;
+    this.dirHandle = null;
 
     // Состояния для drag & drop
     this.dragSourceIndex = null;
@@ -14,7 +15,7 @@ class MediaPlayer {
     this.initializeElements();
     this.attachEventListeners();
     this.initializeDragAndDrop();
-    this.loadPlaylistFromStorage();
+    this.restorePlaylistFromStorage();
   }
 
   initializeElements() {
@@ -349,7 +350,16 @@ class MediaPlayer {
       return;
     }
 
-    audioFiles.forEach((file) => {
+    // Дедупликация: пропускаем файлы, которые уже есть в плейлисте
+    const existingNames = new Set(this.playlist.map((t) => t.name));
+    const newFiles = audioFiles.filter((f) => !existingNames.has(f.name));
+
+    if (newFiles.length === 0) {
+      Toast.show("Все файлы уже добавлены в плейлист", "info");
+      return;
+    }
+
+    newFiles.forEach((file) => {
       const url = URL.createObjectURL(file);
       const track = {
         title: this.getFileNameWithoutExtension(file.name),
@@ -374,16 +384,19 @@ class MediaPlayer {
               return;
           }
   
-          // Запрашиваем доступ ТОЛЬКО ДЛЯ ЧТЕНИЯ
           const dirHandle = await window.showDirectoryPicker({
-              mode: 'read'  // 👈 КЛЮЧЕВОЙ ПАРАМЕТР
+              mode: 'read'
           });
+          
+          // Сохраняем handle для восстановления после перезагрузки
+          this.dirHandle = dirHandle;
+          await PlaylistStorage.saveDirHandle(dirHandle);
           
           const audioFiles = [];
           await this.traverseDirectory(dirHandle, audioFiles);
           
           if (audioFiles.length === 0) {
-              console.log('В папке нет аудиофайлов');
+              Toast.show("В папке нет аудиофайлов", "info");
               return;
           }
           
@@ -423,7 +436,7 @@ class MediaPlayer {
   addToPlaylist(track) {
     this.playlist.push(track);
     this.renderPlaylist();
-    this.savePlaylistToStorage();
+    this.saveTrackOrder();
   }
 
   removeFromPlaylist(index) {
@@ -442,7 +455,7 @@ class MediaPlayer {
     }
 
     this.renderPlaylist();
-    this.savePlaylistToStorage();
+    this.saveTrackOrder();
   }
 
   clearPlaylist() {
@@ -450,8 +463,10 @@ class MediaPlayer {
     this.playlist.forEach((track) => URL.revokeObjectURL(track.url));
     this.playlist = [];
     this.currentTrackIndex = -1;
+    this.dirHandle = null;
     this.renderPlaylist();
-    this.savePlaylistToStorage();
+    PlaylistStorage.removeDirHandle();
+    PlaylistStorage.removeTrackOrder();
     this.updateNowPlaying();
   }
 
@@ -596,6 +611,13 @@ class MediaPlayer {
 
     if (this.currentTrackIndex === -1) {
       this.playTrack(0);
+      return;
+    }
+
+    // Если src не соответствует текущему треку — загружаем его
+    const currentTrack = this.playlist[this.currentTrackIndex];
+    if (this.audio.src !== currentTrack.url) {
+      this.playTrack(this.currentTrackIndex);
       return;
     }
 
@@ -780,28 +802,43 @@ class MediaPlayer {
           }, 50);
   }
 
-  savePlaylistToStorage() {
-    try {
-      const playlistData = this.playlist.map((track) => ({
-        name: track.name || track.title,
-        title: track.title,
-        artist: track.artist,
-      }));
-      localStorage.setItem("playlistData", JSON.stringify(playlistData));
-    } catch (e) {
-      console.warn("Не удалось сохранить плейлист:", e);
+  saveTrackOrder() {
+    PlaylistStorage.saveTrackOrder(this.playlist);
+  }
+
+  async restorePlaylistFromStorage() {
+    const restored = await PlaylistStorage.restorePlaylist(this);
+    if (!restored) {
+      console.log('Нет сохранённой директории для восстановления');
     }
   }
 
-  loadPlaylistFromStorage() {
-    try {
-      const savedData = localStorage.getItem("playlistData");
-      if (savedData) {
-        const playlistData = JSON.parse(savedData);
-        console.log("Ранее сохраненный плейлист:", playlistData);
-      }
-    } catch (e) {
-      console.warn("Не удалось загрузить плейлист:", e);
+  restoreFromFiles(audioFiles) {
+    // Очищаем текущий плейлист (без сохранения — перезаписываем)
+    this.playlist.forEach((track) => URL.revokeObjectURL(track.url));
+    this.playlist = [];
+
+    audioFiles.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      const track = {
+        title: this.getFileNameWithoutExtension(file.name),
+        artist: "Неизвестный исполнитель",
+        duration: 0,
+        url: url,
+        file: file,
+        name: file.name,
+      };
+      this.playlist.push(track);
+    });
+
+    this.renderPlaylist();
+    this.saveTrackOrder();
+
+    // Не вызываем playTrack() — браузер блокирует audio.play()
+    // без пользовательского взаимодействия. Просто показываем первый трек.
+    if (this.playlist.length > 0) {
+      this.currentTrackIndex = 0;
+      this.updateNowPlaying();
     }
   }
 
