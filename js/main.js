@@ -99,11 +99,16 @@ class MediaPlayer {
       const item = e.target.closest(".playlist-item");
       if (!item) return;
 
-      // Проверяем, не кликнули ли по drag-handle или кнопке удаления
-      if (
-        e.target.closest(".drag-handle") ||
-        e.target.closest(".control-btn")
-      ) {
+      // Кнопка удаления
+      const deleteBtn = e.target.closest(".playlist-item-delete");
+      if (deleteBtn) {
+        const index = parseInt(item.dataset.index);
+        this.removeFromPlaylist(index);
+        return;
+      }
+
+      // Проверяем, не кликнули ли по drag-handle
+      if (e.target.closest(".drag-handle")) {
         return;
       }
 
@@ -319,7 +324,7 @@ class MediaPlayer {
       
       this.clearAllDragIndicators();
       this.renderPlaylist();
-      this.savePlaylistToStorage();
+      this.saveTrackOrder();
       
       this.dragSourceIndex = null;
       this.dragOverIndex = null;
@@ -763,7 +768,7 @@ class MediaPlayer {
     this.playlistContainer.innerHTML = this.playlist
       .map(
         (track, index) => `
-                    <div class="playlist-item ${index === this.currentTrackIndex ? "active" : ""}" 
+                    <div class="playlist-item ${index === this.currentTrackIndex ? "active" : ""}"
                          data-index="${index}">
                         <div class="drag-handle" draggable="true">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -782,9 +787,8 @@ class MediaPlayer {
                         <div class="playlist-item-duration">
                             ${track.duration ? this.formatTime(track.duration) : "--:--"}
                         </div>
-                        <button class="control-btn" 
-                                onclick="player.removeFromPlaylist(${index})" 
-                                style="padding: 4px; margin-left: 8px;" 
+                        <button class="control-btn playlist-item-delete"
+                                style="padding: 4px; margin-left: 8px;"
                                 title="Удалить">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M18 6L6 18"/>

@@ -75,6 +75,10 @@ class PlaylistStorage {
 
   static _openDB() {
     return new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error('IndexedDB не поддерживается браузером'));
+        return;
+      }
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
